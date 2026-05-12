@@ -14,9 +14,23 @@ prebuilt_file="$ASDF_DOWNLOAD_PATH/$(llvm_archive_name "$ASDF_INSTALL_VERSION")"
 source_file="$ASDF_DOWNLOAD_PATH/llvmorg-$ASDF_INSTALL_VERSION.tar.gz"
 
 # Download prebuilt archive; fall back to source on 404 or other errors
-if download_prebuilt_release "$ASDF_INSTALL_VERSION" "$prebuilt_file"; then
-	:
-else
+attempt=1
+max_attempts=2
+download_ok=false
+while [ "$attempt" -le "$max_attempts" ]; do
+	if download_prebuilt_release "$ASDF_INSTALL_VERSION" "$prebuilt_file"; then
+		download_ok=true
+		break
+	else
+		printf 'Prebuilt download attempt %d/%d failed\n' "$attempt" "$max_attempts" >&2
+		# remove any partial file before retrying
+		rm -f "$prebuilt_file"
+		attempt=$((attempt + 1))
+	fi
+done
+
+if [ "$download_ok" = false ]; then
+	# fallback to source if prebuilt couldn't be obtained
 	rm -f "$prebuilt_file"
 	download_source_release "$ASDF_INSTALL_VERSION" "$source_file"
 	# Extract contents of tar.gz file into the download directory for source build
