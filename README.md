@@ -23,11 +23,7 @@
 Plugin:
 
 ```shell
-asdf plugin add clang https://github.com/higebu/asdf-llvm.git
-asdf plugin add clang-format https://github.com/higebu/asdf-llvm.git
-asdf plugin add clangd https://github.com/higebu/asdf-llvm.git
-asdf plugin add llvm-objcopy https://github.com/higebu/asdf-llvm.git
-asdf plugin add llvm-objdump https://github.com/higebu/asdf-llvm.git
+asdf plugin add llvm https://github.com/Koracan/asdf-llvm.git
 ```
 
 Check [asdf](https://github.com/asdf-vm/asdf) readme for more instructions on how to

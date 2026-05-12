@@ -10,13 +10,16 @@ source "${plugin_dir}/lib/utils.bash"
 
 mkdir -p "$ASDF_DOWNLOAD_PATH"
 
-release_file="$ASDF_DOWNLOAD_PATH/llvmorg-$ASDF_INSTALL_VERSION.tar.gz"
+prebuilt_file="$ASDF_DOWNLOAD_PATH/$(llvm_archive_name "$ASDF_INSTALL_VERSION")"
+source_file="$ASDF_DOWNLOAD_PATH/llvmorg-$ASDF_INSTALL_VERSION.tar.gz"
 
-# Download tar.gz file to the download directory
-download_release "$ASDF_INSTALL_VERSION" "$release_file"
-
-#  Extract contents of tar.gz file into the download directory
-tar -xzf "$release_file" -C "$ASDF_DOWNLOAD_PATH" --strip-components=1 || fail "Could not extract $release_file"
-
-# Remove the tar.gz file since we don't need to keep it
-rm "$release_file"
+# Download prebuilt archive; fall back to source on 404 or other errors
+if download_prebuilt_release "$ASDF_INSTALL_VERSION" "$prebuilt_file"; then
+	:
+else
+	rm -f "$prebuilt_file"
+	download_source_release "$ASDF_INSTALL_VERSION" "$source_file"
+	# Extract contents of tar.gz file into the download directory for source build
+	tar -xzf "$source_file" -C "$ASDF_DOWNLOAD_PATH" --strip-components=1 || fail "Could not extract $source_file"
+	rm -f "$source_file"
+fi

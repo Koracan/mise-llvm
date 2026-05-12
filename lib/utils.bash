@@ -4,8 +4,7 @@ set -euo pipefail
 
 GH_REPO="https://github.com/llvm/llvm-project"
 __dirname="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TOOL_NAME="$(basename "$(dirname "${__dirname}")")"
-TOOL_TEST="$TOOL_NAME --version"
+TOOL_TEST="clang --version"
 
 fail() {
 	echo -e "asdf-llvm: $*"
@@ -33,15 +32,48 @@ list_all_versions() {
 	list_github_tags
 }
 
-download_release() {
-	local version filename url
+llvm_archive_name() {
+	local version="$1"
+	local os arch
+
+	case "$(uname -s)" in
+		Linux) os="Linux" ;;
+		Darwin) os="macOS" ;;
+		*) fail "Unsupported OS: $(uname -s)" ;;
+	esac
+
+	case "$(uname -m)" in
+		x86_64|amd64) arch="X64" ;;
+		aarch64|arm64) arch="ARM64" ;;
+		*) fail "Unsupported arch: $(uname -m)" ;;
+	esac
+
+	echo "LLVM-${version}-${os}-${arch}.tar.xz"
+}
+
+download_prebuilt_release() {
+	local version output_file remote_name url
 	version="$1"
-	filename="$2"
+	output_file="$2"
+
+	remote_name="$(llvm_archive_name "$version")"
+	url="$GH_REPO/releases/download/llvmorg-${version}/${remote_name}"
+
+	echo "* Downloading LLVM prebuilt $remote_name..."
+	if ! curl "${curl_opts[@]}" -o "$output_file" -C - "$url"; then
+		return 1
+	fi
+}
+
+download_source_release() {
+	local version output_file url
+	version="$1"
+	output_file="$2"
 
 	url="$GH_REPO/archive/llvmorg-${version}.tar.gz"
 
-	echo "* Downloading LLVM release $version for $TOOL_NAME..."
-	curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
+	echo "* Downloading LLVM source $version..."
+	curl "${curl_opts[@]}" -o "$output_file" -C - "$url" || fail "Could not download $url"
 }
 
 install_version() {
@@ -54,43 +86,40 @@ install_version() {
 		fail "asdf-llvm supports release installs only"
 	fi
 
-	# Build from source
 	(
-		mkdir -p "$bin_path"
+		mkdir -p "$install_path"
 		cd "$ASDF_DOWNLOAD_PATH"
-		cmake -S llvm -B build -G Ninja \
-			-DLLVM_ENABLE_PROJECTS='clang;clang-tools-extra' \
-			-DLLVM_BUILD_RUNTIME="OFF" \
-			-DBUILD_SHARED_LIBS="OFF" \
-			-DCMAKE_INSTALL_PREFIX="/usr/local" \
-			-DCMAKE_BUILD_TYPE=Release
-		ninja -C build $TOOL_NAME
-		strip build/bin/$TOOL_NAME
-		cp build/bin/$TOOL_NAME "$bin_path"
-		if [ "$TOOL_NAME" = "clang" ]; then
-			# Create symlinks to clang++ and other tools produced by clang
-			ln -sf "$TOOL_NAME" "$bin_path/clang++"
-			ln -sf "$TOOL_NAME" "$bin_path/clang-cl"
-			ln -sf "$TOOL_NAME" "$bin_path/clang-cpp"
 
-			cp -r build/lib "$install_path"
-		fi
-		cd ..
-		rm -rf "$ASDF_DOWNLOAD_PATH"
+		local archive
+		archive="$(llvm_archive_name "$version")"
 
-		local tool_cmd
-		tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
-		test -x "$bin_path/$tool_cmd" || fail "Expected $bin_path/$tool_cmd to be executable."
-		if [ "$TOOL_NAME" = "clang" ]; then
-			test -x "$bin_path/clang++" || fail "Expected $bin_path/clang++ to be executable."
-			test -x "$bin_path/clang-cl" || fail "Expected $bin_path/clang-cl to be executable."
-			test -x "$bin_path/clang-cpp" || fail "Expected $bin_path/clang-cpp to be executable."
+		if [ -f "$archive" ]; then
+			tar -xJf "$archive" -C "$install_path" --strip-components=1 || fail "Could not extract $archive"
+			rm -f "$archive"
+		else
+			# Build from source and install all tools
+			cmake -S llvm -B build -G Ninja \
+				-DLLVM_ENABLE_PROJECTS='clang;clang-tools-extra' \
+				-DLLVM_BUILD_RUNTIME="OFF" \
+				-DBUILD_SHARED_LIBS="OFF" \
+				-DCMAKE_INSTALL_PREFIX="$install_path" \
+				-DCMAKE_BUILD_TYPE=Release
+			ninja -C build install
+			rm -rf "$ASDF_DOWNLOAD_PATH"
 		fi
 
-		echo "$TOOL_NAME $version installation was successful!"
+		# Validate installation
+		test -d "$bin_path" || fail "Expected $bin_path to exist after installation."
+		if [ -n "${TOOL_TEST:-}" ]; then
+			local tool_cmd
+			tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
+			test -x "$bin_path/$tool_cmd" || fail "Expected $bin_path/$tool_cmd to be executable."
+		fi
+
+		echo "llvm $version installation was successful!"
 	) || (
-		rm -rf "$bin_path"
+		rm -rf "$install_path"
 		rm -rf "$ASDF_DOWNLOAD_PATH"
-		fail "An error occurred while installing $TOOL_NAME $version."
+		fail "An error occurred while installing llvm $version."
 	)
 }
