@@ -6,6 +6,10 @@
 
 </div>
 
+# The Difference Between This And [mise-llvm](https://github.com/mise-plugins/mise-llvm)
+
+[mise-llvm](https://github.com/mise-plugins/mise-llvm) compiles from source and only installs clang, clang, clang-cl, and clang-cpp, whereas this repository prefers to download precompiled versions and installs the entire LLVM.
+
 # Contents
 
 - [Dependencies](#dependencies)
@@ -23,7 +27,7 @@
 Plugin:
 
 ```shell
-asdf plugin add llvm https://github.com/Koracan/asdf-llvm.git
+asdf plugin add llvm https://github.com/Koracan/mise-full-llvm.git
 ```
 
 Check [asdf](https://github.com/asdf-vm/asdf) readme for more instructions on how to
